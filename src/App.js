@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
-// FIX ICONE (IMPORTANTISSIMO per Vercel)
+// FIX ICONE PER VERCEL
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
@@ -36,7 +36,7 @@ const iconDifficile = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-// DECOLLI REALI
+// DECOLLI
 const decolli = [
   { nome: "Malanotte", localita: "Bagnolo Piemonte", lat: 44.722, lng: 7.270, quota: 1350, livello: "medio" },
   { nome: "Iretta", localita: "Villar San Costanzo", lat: 44.480, lng: 7.390, quota: 1100, livello: "facile" },
@@ -55,7 +55,7 @@ const decolli = [
 export default function App() {
   const [meteo, setMeteo] = useState({});
 
-  // PRENDE METEO REALE
+  // METEO REALE
   const getMeteo = async (lat, lng) => {
     const res = await fetch(
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true`
@@ -64,7 +64,7 @@ export default function App() {
     return data.current_weather;
   };
 
-  // CARICA METEO
+  // CARICAMENTO METEO
   useEffect(() => {
     decolli.forEach(async (d) => {
       const m = await getMeteo(d.lat, d.lng);
@@ -96,12 +96,33 @@ export default function App() {
                 <p>⛰️ {d.quota} m</p>
                 <p>🎚️ {d.livello}</p>
 
-                {meteo[d.nome] && (
-                  <>
-                    <p>🌡️ {meteo[d.nome].temperature}°C</p>
-                    <p>💨 {meteo[d.nome].windspeed} km/h</p>
-                  </>
-                )}
+                {meteo[d.nome] && (() => {
+                  const vento = meteo[d.nome].windspeed;
+                  const direzione = meteo[d.nome].winddirection;
+
+                  let stato = "🟢 VOLABILE";
+                  let colore = "green";
+
+                  if (vento > 25) {
+                    stato = "🔴 NON SICURO";
+                    colore = "red";
+                  } else if (vento > 15) {
+                    stato = "🟠 ATTENZIONE";
+                    colore = "orange";
+                  }
+
+                  return (
+                    <>
+                      <p>🌡️ {meteo[d.nome].temperature}°C</p>
+                      <p>💨 {vento} km/h</p>
+                      <p>🧭 {direzione}°</p>
+
+                      <p style={{ color: colore, fontWeight: "bold" }}>
+                        {stato}
+                      </p>
+                    </>
+                  );
+                })()}
 
                 <button
                   onClick={() =>
