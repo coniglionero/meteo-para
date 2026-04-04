@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
@@ -12,12 +12,11 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
-// ICONA DINAMICA
+// ICONE DINAMICHE
 const getIcon = (stato) => {
   let color = "blue";
-
-  if (stato === "OK") color = "green";
-  if (stato === "ATTENZIONE") color = "orange";
+  if (stato === "TOP") color = "green";
+  if (stato === "OK") color = "orange";
   if (stato === "NO") color = "red";
 
   return new L.Icon({
@@ -28,51 +27,24 @@ const getIcon = (stato) => {
   });
 };
 
-// DECOLLI CON ESPOSIZIONE
+// DECOLLI MIGLIORATI
 const decolli = [
-  { nome: "Malanotte", lat: 44.724, lng: 7.269, quota: 1350, esposizione: "S" },
-  { nome: "Iretta", lat: 44.4805, lng: 7.388, quota: 1100, esposizione: "E" },
-  { nome: "Martiniana Po", lat: 44.6275, lng: 7.2555, quota: 900, esposizione: "S" },
-  { nome: "Pian Munè", lat: 44.684, lng: 7.048, quota: 1500, esposizione: "S" },
-  { nome: "Montoso", lat: 44.744, lng: 7.249, quota: 1600, esposizione: "S" },
-  { nome: "Roletto", lat: 44.918, lng: 7.332, quota: 800, esposizione: "E" },
-  { nome: "Piossasco", lat: 44.989, lng: 7.462, quota: 1100, esposizione: "S" },
-  { nome: "Avigliana", lat: 45.082, lng: 7.382, quota: 700, esposizione: "E" },
-  { nome: "Val della Torre", lat: 45.150, lng: 7.455, quota: 900, esposizione: "E" },
-  { nome: "Rocca Canavese", lat: 45.305, lng: 7.576, quota: 1200, esposizione: "S" },
-  { nome: "Cavallaria", lat: 45.441, lng: 7.880, quota: 1300, esposizione: "S" }
+  { nome: "Pian Munè", lat: 44.6845, lng: 7.045, esposizione: "S", quota: 1500 },
+  { nome: "Malanotte", lat: 44.724, lng: 7.269, esposizione: "S", quota: 1350 },
+  { nome: "Piossasco", lat: 44.989, lng: 7.462, esposizione: "S", quota: 1100 },
+  { nome: "Cavallaria", lat: 45.441, lng: 7.880, esposizione: "S", quota: 1300 }
 ];
-
-// CONVERSIONE DIREZIONE VENTO
-const getDirezioneCardinale = (deg) => {
-  if (deg >= 45 && deg < 135) return "E";
-  if (deg >= 135 && deg < 225) return "S";
-  if (deg >= 225 && deg < 315) return "W";
-  return "N";
-};
-
-// LOGICA VOLO REALE
-const valutaVolo = (vento, dirVento, esposizione) => {
-  const dir = getDirezioneCardinale(dirVento);
-
-  if (vento > 25) return "NO";
-
-  if (dir === esposizione && vento <= 20) return "OK";
-
-  if (vento <= 15) return "ATTENZIONE";
-
-  return "NO";
-};
 
 export default function App() {
   const [meteo, setMeteo] = useState({});
+  const [selected, setSelected] = useState(null);
 
   const getMeteo = async (lat, lng) => {
     const res = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true`
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&hourly=temperature_2m,windspeed_10m`
     );
     const data = await res.json();
-    return data.current_weather;
+    return data;
   };
 
   useEffect(() => {
@@ -82,39 +54,78 @@ export default function App() {
     });
   }, []);
 
+  const calcolaTermiche = (temp) => {
+    if (temp > 25) return { valore: "forti", m: "4-6 m/s", quota: "2500m" };
+    if (temp > 18) return { valore: "medie", m: "2-4 m/s", quota: "1800m" };
+    return { valore: "deboli", m: "1-2 m/s", quota: "1200m" };
+  };
+
+  const valuta = (vento) => {
+    if (vento < 15) return "TOP";
+    if (vento < 25) return "OK";
+    return "NO";
+  };
+
   return (
-    <div style={{ height: "100vh" }}>
-      <MapContainer center={[44.9, 7.3]} zoom={9} style={{ height: "100%" }}>
+    <div style={{ display: "flex", height: "100vh" }}>
+      
+      {/* MAPPA */}
+      <MapContainer center={[44.8, 7.3]} zoom={9} style={{ flex: 3 }}>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
         {decolli.map((d, i) => {
-          const m = meteo[d.nome];
-          const stato = m
-            ? valutaVolo(m.windspeed, m.winddirection, d.esposizione)
-            : "ATTENZIONE";
+          const vento = meteo[d.nome]?.current_weather?.windspeed || 0;
+          const stato = valuta(vento);
 
           return (
-            <Marker key={i} position={[d.lat, d.lng]} icon={getIcon(stato)}>
-              <Popup>
-                <div style={{ fontFamily: "Arial" }}>
-                  <h3>{d.nome}</h3>
-                  <p>⛰️ {d.quota} m</p>
-                  <p>🧭 Esp: {d.esposizione}</p>
-
-                  {m && (
-                    <>
-                      <p>🌡️ {m.temperature}°C</p>
-                      <p>💨 {m.windspeed} km/h</p>
-                      <p>🧭 {m.winddirection}°</p>
-                      <p><b>Stato: {stato}</b></p>
-                    </>
-                  )}
-                </div>
-              </Popup>
-            </Marker>
+            <Marker
+              key={i}
+              position={[d.lat, d.lng]}
+              icon={getIcon(stato)}
+              eventHandlers={{
+                click: () => setSelected(d.nome)
+              }}
+            />
           );
         })}
       </MapContainer>
+
+      {/* PANNELLO */}
+      <div style={{
+        flex: 1,
+        background: "#111",
+        color: "white",
+        padding: "20px"
+      }}>
+        {selected ? (
+          <>
+            <h2>{selected}</h2>
+
+            {meteo[selected] && (() => {
+              const m = meteo[selected].current_weather;
+              const termiche = calcolaTermiche(m.temperature);
+
+              return (
+                <>
+                  <p>🌡️ {m.temperature}°C</p>
+                  <p>💨 {m.windspeed} km/h</p>
+                  <p>🧭 {m.winddirection}°</p>
+
+                  <hr />
+
+                  <h3>🔥 Termiche</h3>
+                  <p>Intensità: {termiche.valore}</p>
+                  <p>Velocità: {termiche.m}</p>
+                  <p>Quota: {termiche.quota}</p>
+                </>
+              );
+            })()}
+          </>
+        ) : (
+          <p>Seleziona un decollo</p>
+        )}
+      </div>
+
     </div>
   );
 }
