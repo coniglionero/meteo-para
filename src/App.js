@@ -12,7 +12,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
-// ICONE DINAMICHE
+// 🎯 ICONE
 const getIcon = (stato) => {
   let color = "blue";
   if (stato === "TOP") color = "green";
@@ -27,64 +27,85 @@ const getIcon = (stato) => {
   });
 };
 
-// DECOLLI MIGLIORATI
+// 🧭 DECOLLI REALI (PIÙ COMPLETI)
 const decolli = [
-  { nome: "Pian Munè", lat: 44.6845, lng: 7.045, esposizione: "S", quota: 1500 },
-  { nome: "Malanotte", lat: 44.724, lng: 7.269, esposizione: "S", quota: 1350 },
-  { nome: "Piossasco", lat: 44.989, lng: 7.462, esposizione: "S", quota: 1100 },
-  { nome: "Cavallaria", lat: 45.441, lng: 7.880, esposizione: "S", quota: 1300 }
+  // CUNEO
+  { nome: "Malanotte", lat: 44.718, lng: 7.274, quota: 1350, esposizione: "S", zona: "Cuneo" },
+  { nome: "Boves - Iretta", lat: 44.340, lng: 7.548, quota: 1100, esposizione: "E", zona: "Cuneo" },
+  { nome: "Martiniana Po", lat: 44.625, lng: 7.255, quota: 900, esposizione: "S", zona: "Cuneo" },
+  { nome: "Pian Munè", lat: 44.685, lng: 7.050, quota: 1500, esposizione: "S", zona: "Cuneo" },
+  { nome: "Montoso", lat: 44.745, lng: 7.250, quota: 1600, esposizione: "S", zona: "Cuneo" },
+
+  // TORINO
+  { nome: "Roletto", lat: 44.918, lng: 7.330, quota: 800, esposizione: "E", zona: "Torino" },
+  { nome: "Piossasco", lat: 44.990, lng: 7.460, quota: 1100, esposizione: "S", zona: "Torino" },
+  { nome: "Avigliana - Truccetti", lat: 45.085, lng: 7.380, quota: 700, esposizione: "E", zona: "Torino" },
+  { nome: "Val della Torre", lat: 45.150, lng: 7.455, quota: 900, esposizione: "E", zona: "Torino" },
+  { nome: "Rocca Canavese", lat: 45.305, lng: 7.576, quota: 1200, esposizione: "S", zona: "Torino" },
+  { nome: "Santa Elisabetta", lat: 45.360, lng: 7.700, quota: 1400, esposizione: "S", zona: "Torino" },
+  { nome: "Cavallaria", lat: 45.440, lng: 7.880, quota: 1300, esposizione: "S", zona: "Torino" }
 ];
+
+// 🧠 DIREZIONE VENTO
+const getDir = (deg) => {
+  if (deg >= 45 && deg < 135) return "E";
+  if (deg >= 135 && deg < 225) return "S";
+  if (deg >= 225 && deg < 315) return "W";
+  return "N";
+};
+
+// 🧠 VALUTAZIONE VOLO
+const valuta = (vento, dir, esp) => {
+  const d = getDir(dir);
+
+  if (vento > 30) return "NO";
+  if (d === esp && vento < 20) return "TOP";
+  if (vento < 15) return "OK";
+  return "NO";
+};
+
+// 🔥 TERMICHE (STIMA)
+const termiche = (temp) => {
+  if (temp > 26) return { label: "FORTI", ms: "4-6", quota: "2500m" };
+  if (temp > 20) return { label: "MEDIE", ms: "2-4", quota: "2000m" };
+  return { label: "DEBOLI", ms: "1-2", quota: "1200m" };
+};
 
 export default function App() {
   const [meteo, setMeteo] = useState({});
   const [selected, setSelected] = useState(null);
 
-  const getMeteo = async (lat, lng) => {
-    const res = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&hourly=temperature_2m,windspeed_10m`
-    );
-    const data = await res.json();
-    return data;
-  };
-
   useEffect(() => {
     decolli.forEach(async (d) => {
-      const m = await getMeteo(d.lat, d.lng);
-      setMeteo((prev) => ({ ...prev, [d.nome]: m }));
+      const res = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${d.lat}&longitude=${d.lng}&current_weather=true`
+      );
+      const data = await res.json();
+
+      setMeteo(prev => ({
+        ...prev,
+        [d.nome]: data.current_weather
+      }));
     });
   }, []);
 
-  const calcolaTermiche = (temp) => {
-    if (temp > 25) return { valore: "forti", m: "4-6 m/s", quota: "2500m" };
-    if (temp > 18) return { valore: "medie", m: "2-4 m/s", quota: "1800m" };
-    return { valore: "deboli", m: "1-2 m/s", quota: "1200m" };
-  };
-
-  const valuta = (vento) => {
-    if (vento < 15) return "TOP";
-    if (vento < 25) return "OK";
-    return "NO";
-  };
-
   return (
     <div style={{ display: "flex", height: "100vh" }}>
-      
+
       {/* MAPPA */}
-      <MapContainer center={[44.8, 7.3]} zoom={9} style={{ flex: 3 }}>
+      <MapContainer center={[44.9, 7.3]} zoom={9} style={{ flex: 3 }}>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
         {decolli.map((d, i) => {
-          const vento = meteo[d.nome]?.current_weather?.windspeed || 0;
-          const stato = valuta(vento);
+          const m = meteo[d.nome];
+          const stato = m ? valuta(m.windspeed, m.winddirection, d.esposizione) : "OK";
 
           return (
             <Marker
               key={i}
               position={[d.lat, d.lng]}
               icon={getIcon(stato)}
-              eventHandlers={{
-                click: () => setSelected(d.nome)
-              }}
+              eventHandlers={{ click: () => setSelected(d.nome) }}
             />
           );
         })}
@@ -93,17 +114,18 @@ export default function App() {
       {/* PANNELLO */}
       <div style={{
         flex: 1,
-        background: "#111",
+        background: "#0f172a",
         color: "white",
-        padding: "20px"
+        padding: "20px",
+        fontFamily: "Arial"
       }}>
         {selected ? (
           <>
             <h2>{selected}</h2>
 
             {meteo[selected] && (() => {
-              const m = meteo[selected].current_weather;
-              const termiche = calcolaTermiche(m.temperature);
+              const m = meteo[selected];
+              const t = termiche(m.temperature);
 
               return (
                 <>
@@ -113,10 +135,10 @@ export default function App() {
 
                   <hr />
 
-                  <h3>🔥 Termiche</h3>
-                  <p>Intensità: {termiche.valore}</p>
-                  <p>Velocità: {termiche.m}</p>
-                  <p>Quota: {termiche.quota}</p>
+                  <h3>🔥 TERMICHE</h3>
+                  <p>{t.label}</p>
+                  <p>{t.ms} m/s</p>
+                  <p>{t.quota}</p>
                 </>
               );
             })()}
